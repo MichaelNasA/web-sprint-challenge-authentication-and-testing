@@ -1,7 +1,57 @@
 const router = require('express').Router();
+const bcrypt = require('bcryptjs')
+const db = require('../../data/dbConfig')
+const jwt = require('jsonwebtoken')
+const JWT_SECRET = process.env.JWT_SECRET || 'shh'
 
-router.post('/register', (req, res) => {
-  res.end('implement register, please!');
+router.post('/register', async (req, res) => {
+  const {username, password} =req.body
+ if(!username || !password){
+   return res.status(400).json({message:'username and password required'})
+ }
+ try {
+ const hashed = bcrypt.hashSync(password,8)
+  const [id] = await db('users').insert({username , password:hashed})
+  const newuser = await db('users').where({id}).first()
+  res.status(201).json(newuser)
+
+ } catch(e){
+  if(e.code === 'SQLITE_CONSTRAINT'){
+    res.status(400).json({message:'username taken'})
+  } else {
+    res.status(500).json({message:'Internal server error'})
+  }
+ }
+
+ 
+});
+
+router.post('/login', async (req, res) => {
+  const {username, password} =req.body
+  console.log(req.body , 'body')
+try{
+  const user = await db('users').select('*').where({username}).first()
+  console.log(user)
+  if(user && await bcrypt.compare(password, user.password)){
+    const payload = {userId: user.id}
+    const token = jwt.sign(payload,JWT_SECRET, {expiresIn:'1h'})
+    res.status(200).json({message:`welcome, ${user.username}`,token})
+  } else {
+    res.status(401).json({message:'invalid credentials'})
+  }
+} catch (e) {
+  res.status(500).json({message: 'username and passwword required'})
+} 
+  }
+);
+
+module.exports = router;
+
+
+
+
+//const router = require('express').Router();
+
   /*
     IMPLEMENT
     You are welcome to build additional middlewares to help with the endpoint's functionality.
@@ -27,10 +77,8 @@ router.post('/register', (req, res) => {
     4- On FAILED registration due to the `username` being taken,
       the response body should include a string exactly as follows: "username taken".
   */
-});
 
-router.post('/login', (req, res) => {
-  res.end('implement login, please!');
+
   /*
     IMPLEMENT
     You are welcome to build additional middlewares to help with the endpoint's functionality.
@@ -54,6 +102,3 @@ router.post('/login', (req, res) => {
     4- On FAILED login due to `username` not existing in the db, or `password` being incorrect,
       the response body should include a string exactly as follows: "invalid credentials".
   */
-});
-
-module.exports = router;
